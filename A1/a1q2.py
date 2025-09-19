@@ -47,33 +47,59 @@ def z_algorithm(s):
                 r = k + match_length - 1
     return Z
 
-def bad_character(pat):
+def preprocess_bad_character(pat):
     #latest occurence is a dictionary of characters to their latest occurence
     latest_occurence = {}
     length = len(pat)
     
-    #initialise result to an empty list the length of the string
-    result = [None]*length
-    #result will end up being a shortening of the extended bad character rule
-    #at index x, result will store the leftmost occurence of pat[x] that's at index x+1 or more. 
-    #we can get away with this shortening because if we have a mismatch at y, we'll only need to look at the character at y, pat[y],   
+    #initialise result to an empty dictionary. we'll attribute chars to lists in result
+    result = {}  
     
     #Iterate through the indexes backwards
     for i in range(length-1,-1,-1):
         
         char = pat[i]
+
+        #if char isn't in the result, add it to the result
+        if char not in result:
+            result[char] = [None]*length
+
+        #for each character, take their latest occurence as the new value
+        for existingChar in latest_occurence:
+            result[existingChar][i] = latest_occurence[existingChar]
         
-        #if char is already in there, then it's occured before, thus result i  
-        #TODO: this is literally wrong
-        if char in latest_occurence:
-            result[i] = char
-        else:
-            latest_occurence[char] = i
+        #update the latest character in latest occurence
+        latest_occurence[char] = i
+
+    return result
     
         
 
-def good_prefix(pat):
-    pass
+def preprocess_good_prefix(pat):
+    z_prefix = z_algorithm(pat)
+    length = len(pat)
+    good_prefix = [None] * length
+    
+    for i in range(length-1,-1,-1):
+        z_box = z_prefix[i]
+        good_prefix[z_box] = i
+
+def preprocess_good_suffix(pat):
+    z_suffix = (z_algorithm(pat[::-1]))
+    z_suffix.reverse()
+    print(z_suffix)
+
+    length = len(pat)
+    good_suffix = [None] * (length+1)
+    
+    for i in range(length):
+        z_box = z_suffix[i]
+        good_suffix[length-z_box] = i
+    print(good_suffix)
+    
+    matchedprefix = [None]*(length+1)
+    
+    
 
 def boyer_moore_leftwards(pattern, text, bad_char, good_prefix):
     pass
@@ -112,4 +138,8 @@ def main(argv):
 
 
 if __name__ == "__main__":
-    main(sys.argv)
+    # main(sys.argv)
+    # res = bad_character("abacab")
+    # for b in res:
+    #     print(b,res[b])
+    preprocess_good_suffix("acababacaba")

@@ -99,7 +99,105 @@ def preprocess_good_suffix(pat):
     
     matchedprefix = [None]*(length+1)
     
-    
+def preprocess_good_suffix_and_matched_prefix(pat: str):
+    """
+    Preprocess 'pat' to build:
+      1) z_suffix:  length-m array (0-based). z_suffix[p] = length L of the longest substring
+         that ENDS at index p in 'pat' and equals a SUFFIX of the whole pattern.
+         (Built by computing Z on the reversed pattern and mapping back.)
+
+      2) good_suffix_pos: length-(m+1) array (0-based indices, but sized like the notes).
+         Index k0 in [0..m] corresponds to k = k0+1 in the notes.
+         For a mismatch at pattern index i, the matched suffix length is s = m-1-i,
+         and k0 = i+1. Then:
+             p = good_suffix_pos[k0]  (p is the RIGHTMOST end position in 'pat' where
+                                       that matched suffix reoccurs with a different
+                                       preceding character)
+         If p != -1, the good-suffix shift is:  shift = m - (p+1).
+         If p == -1, there is no internal reoccurrence; we must fall back to matched-prefix.
+
+         We store -1 when there is no such p. (This is equivalent to gs(k+1)=0 in the notes.)
+         NOTE: We choose the RIGHTMOST p when multiple candidates exist.
+
+      3) matched_prefix_len: length-(m+1) array (0-based, sized like the notes).
+         matched_prefix_len[k0] (k0 in [0..m]) corresponds to mp(k0+1) in the notes:
+             the length of the LONGEST PREFIX of 'pat' that is also a suffix of pat[k..m-1],
+             where k = k0 (0-based).
+         We set:
+             matched_prefix_len[0]   = m   (mp(1) = m by convention)
+             matched_prefix_len[m]   = 0   (mp(m+1) = 0)
+         and fill the middle using the ordinary Z-array on 'pat', plus a rightward
+         propagation so shorter suffixes inherit the best known border.
+
+    Returns:
+        z_suffix, good_suffix_pos, matched_prefix_len
+    """
+    m = len(pat)
+    if m == 0:
+        # Trivial edge case
+        return [], [0], [0]
+
+    # -----------------------------
+    # Build z_suffix via reversed Z
+    # -----------------------------
+    pat_rev = pat[::-1]
+    Z_rev = z_algorithm(pat_rev)
+
+    # Map Z on reversed back to "end-aligned" Z on the original:
+    # Z_rev[i] is a prefix match length starting at i in pat_rev,
+    # which corresponds to a suffix match ENDING at p = m-1 - i in pat.
+    z_suffix = [0] * m
+    for i in range(m):
+        p = m - 1 - i        # end position in original pat
+        z_suffix[p] = Z_rev[i]
+
+    # -------------------------------------------
+    # Build good_suffix_pos (aka gs positions)
+    # -------------------------------------------
+    # good_suffix_pos has size m+1 so index k0 corresponds to k = k0+1 (notes).
+    # We'll store the RIGHTMOST end-position p (0-based) for each k0; -1 means none.
+    good_suffix_pos = [-1] * (m + 1)
+
+    # For each end position p in pat, z_suffix[p] = L means:
+    # there is a substring ending at p that equals the suffix of length L.
+    # For L in (0, m): it contributes to gs at index k0 = m - L
+    # (since k = m - L + 1 in the notes, so k0 = k-1 = m - L).
+    #
+    # We ignore L == m (the whole pattern), since the good-suffix rule uses PROPER suffixes.
+    for p in range(m):
+        L = z_suffix[p]
+        if 0 < L < m:
+            k0 = m - L  # 0-based index into our size-(m+1) table
+            # Choose the RIGHTMOST p (largest p) if multiple candidates exist
+            if p > good_suffix_pos[k0]:
+                good_suffix_pos[k0] = p
+
+    # ----------------------------------------------------------------------------------
+    # Build matched_prefix_len (mp) using the ordinary Z-array on the original pattern
+    # ----------------------------------------------------------------------------------
+    # Idea: if j + Z[j] == m, then a prefix of length L = Z[j] is a suffix of the WHOLE
+    # pattern. That border also serves as a prefix for any suffix pat[k..m-1] that is
+    # long enough. We'll seed the positions k0 = m - L, then propagate to the left.
+    Z = z_algorithm(pat)
+
+    matched_prefix_len = [0] * (m + 1)
+    matched_prefix_len[0] = m   # mp(1) = m by convention
+    matched_prefix_len[m] = 0   # mp(m+1) = 0
+
+    # Seed from Z entries that "touch the end"
+    for j in range(1, m):  # j = 1..m-1 (0-based)
+        L = Z[j]
+        if L > 0 and j + L == m:
+            k0 = m - L              # corresponds to mp(k0+1) = L
+            if L > matched_prefix_len[k0]:
+                matched_prefix_len[k0] = L
+
+    # Propagate best values right-to-left so shorter suffixes inherit the best known border
+    for k0 in range(m - 1, 0, -1):
+        if matched_prefix_len[k0] < matched_prefix_len[k0 + 1]:
+            matched_prefix_len[k0] = matched_prefix_len[k0 + 1]
+
+    return z_suffix, good_suffix_pos, matched_prefix_len
 
 def boyer_moore_leftwards(pattern, text, bad_char, good_prefix):
     pass
@@ -142,4 +240,5 @@ if __name__ == "__main__":
     # res = bad_character("abacab")
     # for b in res:
     #     print(b,res[b])
-    preprocess_good_suffix("acababacaba")
+    # preprocess_good_suffix("acababacaba")
+    print("\n".join(map(str,preprocess_good_suffix_and_matched_prefix("acababacaba"))))

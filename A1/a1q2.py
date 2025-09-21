@@ -75,16 +75,52 @@ def preprocess_bad_character(pat):
     
         
 
-def preprocess_good_prefix(pat):
+def preprocess_good_prefix_matched_suffix(pat):
+    #z suffix array can be created with the z algorithm
     z_prefix = z_algorithm(pat)
+    
+    #length
     length = len(pat)
+    
+    #initialise good prefix to Nones.
     good_prefix = [None] * length
     
+    #compute good_prefix
+    #iterate backwards through the indices
     for i in range(length-1,-1,-1):
+        
         z_box = z_prefix[i]
-        good_prefix[z_box] = i
+        #if the z_box is greater than 0, it means the substring starting at index i matches the prefix
+        if z_box > 0:
+            #if there isn't a value at z_box already, or if it's larger than our index, then replace with i.
+            #we want the smallest i value for every z box size because that ensures we don't accidentally shift and skip an occurence of good prefix
+            if good_prefix[z_box] == None or good_prefix[z_box] > i:
+                good_prefix[z_box] = i
+    
+    #create z suffix
+    z_suffix = (z_algorithm(pat[::-1]))
+    z_suffix.reverse()
+    # print("zsuf",z_suffix)
+    
+    #init matched suffix
+    matched_suffix = [None]*length
+    
+    #iterate backwards
+    for i in range(length-1,-1,-1):
+        suff_box = z_suffix[i]
+        #if the suff box encapsulates all characters from the first to the i-th, then it's a suffix that matches the prefix
+        if suff_box > 0 and i - suff_box + 1 == 0:
+            matched_suffix[i] = suff_box
+    
+    #fill in values with their latest matched suffix length
+    for i in range(1,length):
+        if matched_suffix[i] == None:
+            matched_suffix[i] = matched_suffix[i-1]
+    
+    return z_prefix, good_prefix, matched_suffix
 
 def preprocess_good_suffix(pat):
+    
     z_suffix = (z_algorithm(pat[::-1]))
     z_suffix.reverse()
     print(z_suffix)
@@ -242,3 +278,5 @@ if __name__ == "__main__":
     #     print(b,res[b])
     # preprocess_good_suffix("acababacaba")
     print("\n".join(map(str,preprocess_good_suffix_and_matched_prefix("acababacaba"))))
+    print("\n")
+    print("\n".join(map(str,preprocess_good_prefix_matched_suffix("abacababaca"))))

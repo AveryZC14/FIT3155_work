@@ -316,7 +316,8 @@ def boyer_moore_leftwards(text, pattern):
             matches.append(pattern_align)
             #shift by like,,,, ms[1]? or something?
             shift += matched_suffix[1]
-            
+    #todo: test if this even works 
+    return matches
                 
                 
                 

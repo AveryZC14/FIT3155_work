@@ -96,6 +96,7 @@ def preprocess_good_prefix_matched_suffix(pat):
             #we want the smallest i value for every z box size because that ensures we don't accidentally shift and skip an occurence of good prefix
             if good_prefix[z_box] == None or good_prefix[z_box] > i:
                 good_prefix[z_box] = i
+                print(f"replaced at index {z_box} with {i}")
     
     #create z suffix
     z_suffix = (z_algorithm(pat[::-1]))
@@ -140,10 +141,12 @@ def boyer_moore_search(text, pattern):
         return matches
 
     # last: bad-character table (rightmost position per character)
-    last = build_last_occurrence(pattern)
+    # last = build_last_occurrence(pattern)
+    last = []
 
     # z_suffix, good_suffix_pos, matched_prefix_len: tables for good-suffix / matched-prefix
-    z_suffix, good_suffix_pos, matched_prefix_len = preprocess_good_suffix_and_matched_prefix(pattern)
+    # z_suffix, good_suffix_pos, matched_prefix_len = preprocess_good_suffix_and_matched_prefix(pattern)
+    z_suffix, good_suffix_pos, matched_prefix_len = []
 
     # full_match_shift: shift to apply after a full match (matched-prefix rule)
     # equals m - longest border of the whole pattern; longest border = matched_prefix_len[1]
@@ -271,6 +274,13 @@ def boyer_moore_leftwards(text, pattern):
     bad_char_dict = preprocess_bad_character(pattern)
     good_prefix, matched_suffix = preprocess_good_prefix_matched_suffix(pattern)
     
+    for b in bad_char_dict:
+        print(b,bad_char_dict[b])
+    print("gp",good_prefix)
+    print("ms",matched_suffix)
+    
+    print("hgelllo")
+    
     #skip range for galil's optimisation
     skip_start = -1
     skip_end = -1
@@ -282,10 +292,13 @@ def boyer_moore_leftwards(text, pattern):
     
     #outer while loop shifts pattern
     while pattern_align > 0:
+        print("\nPA",pattern_align)
+        ini = pattern_align
         #index in pattern
         i = 0
         #inner while loop matches txt to pattern
         while i < pat_len:
+            print("i",i)
             # if in a skip range, skip
             if skip_start <= i <= skip_end:
                 i = skip_end+1
@@ -297,26 +310,41 @@ def boyer_moore_leftwards(text, pattern):
                 shift = 1
                 
                 # bad character shift
+                bad_char_shift = 0
                 bad_char = text[pattern_align+i]
-                bad_char_shift = bad_char_dict[bad_char][i]
+                
+                if bad_char in bad_char_dict:
+                    
+                    #get next occurence of bad character in pat
+                    idx_of_character = bad_char_dict[bad_char][i]
+                    
+                    # minus i to get the shift
+                    bad_char_shift = idx_of_character - i
                 
                 #good prefix shift
-                good_prefix_shift = good_prefix[i+1] #i+1 is the length of the prefix
+                good_prefix_shift = good_prefix[i]
                 if good_prefix_shift == None:
                     #fall back onto matched_suffix
                     good_prefix_shift = matched_suffix[i]
-                    
+                    print("used matched suffix")
+                else:
+                    print("used good prefix")
+                
+                print("shifts",shift,bad_char_shift,good_prefix_shift)
                 shift = max([shift,bad_char_shift,good_prefix_shift])
                 #TODO: implement galil's skip window
-                
-                pattern_align += shift
+                assert shift >= 1
+                pattern_align -= shift
                 break # no more on this alignment
-        if (i > pat_len):
+        print(f"while loop broken, i: {i}")
+        if (i >= pat_len):
             #full match?
             matches.append(pattern_align)
             #shift by like,,,, ms[1]? or something?
-            shift += matched_suffix[1]
+            pattern_align -= matched_suffix[1]
+        assert ini != pattern_align
     #todo: test if this even works 
+    print("matches:",matches)
     return matches
                 
                 
@@ -335,23 +363,9 @@ def main(argv):
         
     with open(pattern_path, 'r', encoding='utf-8') as f:
         pattern = f.read().rstrip('\n')
-
-    #combined pattern
-    combined = pattern + DELIMITER + text
-    
-    #apply the Z algorithm 
-    Z = z_algorithm(combined)
-    m = len(pattern)
-    
-    output_line = ""
-    
-    #get the indexes where the Z value is high enough that it means a full pattern match
-    for i in range(m + 1, len(combined)):
-        if Z[i] >= m:
-            output_line += str(i - m) + "\n"
-            
-    output_line = output_line.strip()
-    
+        
+    output = boyer_moore_leftwards("wababaabcabzbbabacbayabababaxbacaxx", "ababacba")
+    output_line = "\n".join(output)
     print(output_line)
     
     #write to file
@@ -365,6 +379,14 @@ if __name__ == "__main__":
     # for b in res:
     #     print(b,res[b])
     # preprocess_good_suffix("acababacaba")
-    print("\n".join(map(str,preprocess_good_suffix_and_matched_prefix("acababacaba"))))
+    # print("\n".join(map(str,preprocess_good_suffix_and_matched_prefix("acababacaba"))))
     print("\n")
-    print("\n".join(map(str,preprocess_good_prefix_matched_suffix("abacababaca"))))
+    # print("\n".join(map(str,preprocess_good_prefix_matched_suffix("abacababaca"))))
+    output = boyer_moore_leftwards("wababacbaxababacbazbbabacbayabababxacbaxx", "ababacba")
+    # wababacbaxababacbazbbabacbayabababxacbaxx
+    #           ababacba
+    
+    #       a
+    #       ababacba
+    output_line = "\n".join(map(str,output))
+    print(output_line)

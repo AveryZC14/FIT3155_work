@@ -96,7 +96,7 @@ def preprocess_good_prefix_matched_suffix(pat):
             #we want the smallest i value for every z box size because that ensures we don't accidentally shift and skip an occurence of good prefix
             if good_prefix[z_box] == None or good_prefix[z_box] > i:
                 good_prefix[z_box] = i
-                print(f"replaced at index {z_box} with {i}")
+                # print(f"replaced at index {z_box} with {i}")
     
     #create z suffix
     z_suffix = (z_algorithm(pat[::-1]))
@@ -106,8 +106,8 @@ def preprocess_good_prefix_matched_suffix(pat):
     #init matched suffix
     matched_suffix = [None]*length
     
-    #iterate backwards
-    for i in range(length-1,-1,-1):
+    #iterate 
+    for i in range(length):
         suff_box = z_suffix[i]
         #if the suff box encapsulates all characters from the first to the i-th, then it's a suffix that matches the prefix
         if suff_box > 0 and i - suff_box + 1 == 0:
@@ -117,147 +117,9 @@ def preprocess_good_prefix_matched_suffix(pat):
     for i in range(1,length):
         if matched_suffix[i] == None:
             matched_suffix[i] = matched_suffix[i-1]
+    #could probably combine the for loops but i have no time
     
     return good_prefix, matched_suffix
-
-
-# -----------------------------
-# BOYER–MOORE SEARCH (0-based)
-# -----------------------------
-
-def boyer_moore_search(text, pattern):
-    # n, m: lengths of text and pattern
-    n = len(text)
-    m = len(pattern)
-
-    # matches: list of starting indices where pattern occurs in text
-    matches = []
-
-    # Edge cases: empty pattern or pattern longer than text
-    if m == 0:
-        # by convention, empty pattern matches at every position including n
-        return list(range(n + 1))
-    if n < m:
-        return matches
-
-    # last: bad-character table (rightmost position per character)
-    # last = build_last_occurrence(pattern)
-    last = []
-
-    # z_suffix, good_suffix_pos, matched_prefix_len: tables for good-suffix / matched-prefix
-    # z_suffix, good_suffix_pos, matched_prefix_len = preprocess_good_suffix_and_matched_prefix(pattern)
-    z_suffix, good_suffix_pos, matched_prefix_len = []
-
-    # full_match_shift: shift to apply after a full match (matched-prefix rule)
-    # equals m - longest border of the whole pattern; longest border = matched_prefix_len[1]
-    full_match_shift = m - (matched_prefix_len[1] if m >= 2 else 0)
-    if full_match_shift <= 0:
-        full_match_shift = 1
-
-    # align_start: current alignment start in text (pattern[0] under text[align_start])
-    align_start = 0
-
-    # Galil skip window [known_start .. known_end] in pattern indices:
-    # this region is guaranteed to match in the NEXT alignment (so we can skip it)
-    known_start = -1  # left boundary of known-equal region in pattern for next alignment
-    known_end = -2    # right boundary (< known_start means "no window")
-
-    # Search main loop: while pattern fits in remaining text
-    while align_start <= n - m:
-        # i: current index in pattern (right-to-left scan)
-        i = m - 1
-
-        # Right-to-left comparisons at this alignment
-        while i >= 0:
-            # If i lies inside the known-equal window, jump left of the window (Galil)
-            if known_start <= i <= known_end:
-                i = known_start - 1
-                continue
-
-            # If characters match, move left
-            if pattern[i] == text[align_start + i]:
-                i -= 1
-                continue
-
-            # ---- Mismatch at pattern index i ----
-
-            # Bad-character move:
-            # last_pos: rightmost index of the mismatched text char in the pattern, or -1
-            mismatched_char = text[align_start + i]
-            last_pos = last.get(mismatched_char, -1)
-            # Align that occurrence under the mismatched char in text; must move at least 1
-            bad_char_move = i - last_pos
-            if bad_char_move < 1:
-                bad_char_move = 1
-
-            # Good-suffix / matched-prefix move:
-            # k0: table index for this mismatch (k0 = i+1
-            k0 = i + 1
-            # p: rightmost end position of an internal reoccurrence of the matched suffix
-            p = good_suffix_pos[k0]
-            if p != -1:
-                # gs-based shift: move so that this internal occurrence lines up
-                gs_move = m - (p + 1)
-                used_gs_internal = True
-            else:
-                # fallback: matched-prefix shift for this k0
-                gs_move = m - matched_prefix_len[k0]
-                used_gs_internal = False
-
-            # Choose the larger safe shift
-            shift = gs_move if gs_move > bad_char_move else bad_char_move
-            if shift < 1:
-                shift = 1
-
-            # -------------------------
-            # Galil: set skip window for NEXT alignment (depends on which shift we used)
-            # -------------------------
-            if shift == gs_move:
-                if used_gs_internal:
-                    # s: length of the matched suffix before the mismatch
-                    s = (m - 1) - i
-                    # After an internal good-suffix shift, we KNOW pattern[p - s + 1 .. p]
-                    # will match text at the next alignment. Record that window.
-                    known_start = p - s + 1
-                    known_end = p
-                else:
-                    # Matched-prefix case: we know the prefix of length mp = matched_prefix_len[k0]
-                    mp = matched_prefix_len[k0]
-                    if mp > 0:
-                        known_start = 0
-                        known_end = mp - 1
-                    else:
-                        # no guaranteed region
-                        known_start = -1
-                        known_end = -2
-            else:
-                # Bad-character won: we can't guarantee any region for the next alignment
-                known_start = -1
-                known_end = -2
-
-            # Advance to next alignment
-            align_start += shift
-            break  # break the inner comparison loop; continue with next alignment
-
-        else:
-            # If we exit the while i>=0 loop normally, we matched the whole pattern
-            matches.append(align_start)
-
-            # For the NEXT alignment after a full match, we can also set a Galil window:
-            # the prefix of length matched_prefix_len[1] is known to match.
-            mp_after_full = matched_prefix_len[1] if m >= 2 else 0
-            if mp_after_full > 0:
-                known_start = 0
-                known_end = mp_after_full - 1
-            else:
-                known_start = -1
-                known_end = -2
-
-            # Shift by the full-match (matched-prefix) amount 
-            align_start += full_match_shift
-
-    return matches
-
 
 
 def boyer_moore_leftwards(text, pattern):
@@ -279,7 +141,7 @@ def boyer_moore_leftwards(text, pattern):
     print("gp",good_prefix)
     print("ms",matched_suffix)
     
-    print("hgelllo")
+    # print("hgelllo")
     
     #skip range for galil's optimisation
     skip_start = -1
@@ -291,17 +153,18 @@ def boyer_moore_leftwards(text, pattern):
     matches = []
     
     #outer while loop shifts pattern
-    while pattern_align > 0:
-        print("\nPA",pattern_align)
+    while pattern_align >= 0:
+        # print("\nPA",pattern_align)
         ini = pattern_align
         #index in pattern
         i = 0
         #inner while loop matches txt to pattern
         while i < pat_len:
-            print("i",i)
+            # print("i",i)
+            # print("skipstartend",skip_start,skip_end)
             # if in a skip range, skip
             if skip_start <= i and i <= skip_end:
-                print("skip to",str(skip_end+1))
+                # print("skip to",str(skip_end+1))
                 i = skip_end+1
             #if the characters match, move on
             elif text[pattern_align+i] == pattern[i]:
@@ -330,14 +193,16 @@ def boyer_moore_leftwards(text, pattern):
                     #fall back onto matched_suffix
                     good_prefix_shift = matched_suffix[i]
                     used_good_prefix = False
-                    print("used matched suffix")
+                    # print("used matched suffix")
                 else:
-                    print("used good prefix")
+                    # print("used good prefix")
+                    pass
                 
-                print("shifts",shift,bad_char_shift,good_prefix_shift)
+                # print("shifts",shift,bad_char_shift,good_prefix_shift)
                 shift = max([shift,bad_char_shift,good_prefix_shift])
-                
-                #galil's skip window
+            
+            
+                # #galil's skip window
                 if (shift == good_prefix_shift & shift >= 1):
                     #set the shift window
                     if used_good_prefix:
@@ -356,33 +221,25 @@ def boyer_moore_leftwards(text, pattern):
                 else: # bad character rule used, no shift available
                     skip_start = -1
                     skip_end = -1
-                    
+                
                 assert shift >= 1
                 pattern_align -= shift
                 break # no more on this alignment
             
-        print(f"while loop broken, i: {i}")
-        if (i >= pat_len):
-            print("full match ",pattern_align)
+        # print(f"while loop broken, i: {i}")
+        if (i >= pat_len): #full match
             
             #reset galil skip window
-            skip_start = -1
-            skip_end = -1
-            #full match?
+            # skip_start = -1
+            # skip_end = -1
+            
             matches.append(pattern_align)
-            #shift by like,,,, ms[1]? or something?
-            full_match_shift = 1
-            #if the patterns' longer than 1, then there might be a matched_suffix with a better safe shift
-            if (pat_len > 1):
-                full_match_shift = matched_suffix[1]
-                #and again we can set the matched suffix galil's skip window
-                skip_start = 0
-                skip_end = good_prefix_shift
-            pattern_align -= full_match_shift
+            
+            pattern_align -= 1
             
         assert ini != pattern_align
         
-    print("matches:",matches)
+    # print("matches:",matches)
     return matches
                 
                 
@@ -402,11 +259,16 @@ def main(argv):
     with open(pattern_path, 'r', encoding='utf-8') as f:
         pattern = f.read().rstrip('\n')
     
-    output = boyer_moore_leftwards(text,pattern)
+    
+    indexes = boyer_moore_leftwards(text,pattern)
     # wababaabcabzbbabacbayabababaxbacaxx
     #                        ababacba
     # output = boyer_moore_leftwards("wababaabcabzbbabacbayabababaxbacaxx", "ababacba")
+    #increment to 1 based indexing for assignment purposes
+    
+    output = map((lambda x:x+1), indexes)
     output_line = "\n".join(map(str,output))
+    
     print(output_line)
     
     #write to file
